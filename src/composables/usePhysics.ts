@@ -17,6 +17,13 @@ export function usePhysics(canvasRef: any) {
   const playerBodies: Record<string, Matter.Body> = {}
   const itemBodies: Record<string, Matter.Body> = {}
   
+  // 碰撞计数器
+  const collisionCounts: Record<string, number> = {}
+  const lastCollisionTime: Record<string, number> = {}
+  
+  // 重置碰撞计数的时间间隔（毫秒）
+  const COLLISION_RESET_INTERVAL = 1000
+  
   // 引擎状态
   const isRunning = ref(false)
   
@@ -710,23 +717,41 @@ export function usePhysics(canvasRef: any) {
   
   // 碰撞后检查玩家速度并修正
   function adjustPlayerVelocityAfterCollision(playerBody: Matter.Body, player: any) {
+    const playerId = player.id
+    const now = Date.now()
+    
+    // 初始化或重置碰撞计数
+    if (!lastCollisionTime[playerId] || now - lastCollisionTime[playerId] > COLLISION_RESET_INTERVAL) {
+      collisionCounts[playerId] = 1
+    } else {
+      collisionCounts[playerId] = (collisionCounts[playerId] || 0) + 1
+    }
+    
+    lastCollisionTime[playerId] = now
+    
+    // 如果短时间内碰撞次数超过2次，给予随机方向
+    if (collisionCounts[playerId] > 2) {
+      console.log(`玩家${playerId}检测到连续碰撞，应用随机方向`)
+      const randomAngle = Math.random() * Math.PI * 2
+      const currentSpeed = baseSpeed * player.speedFactor
+      
+      Matter.Body.setVelocity(playerBody, {
+        x: Math.cos(randomAngle) * currentSpeed,
+        y: Math.sin(randomAngle) * currentSpeed
+      })
+      
+      // 重置碰撞计数
+      collisionCounts[playerId] = 0
+      return
+    }
+    
+    // 正常的碰撞速度调整
+    const velocity = playerBody.velocity
+    const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
     const targetSpeed = baseSpeed * player.speedFactor
-    const currentVel = playerBody.velocity
-    const currentSpeed = Math.sqrt(currentVel.x * currentVel.x + currentVel.y * currentVel.y)
     
-    // 检查速度方向，避免纯水平或纯垂直运动
-    const isNearHorizontal = Math.abs(currentVel.y) < 0.5
-    const isNearVertical = Math.abs(currentVel.x) < 0.5
-    
-    if (Math.abs(currentSpeed - targetSpeed) > 0.5 || isNearHorizontal || isNearVertical) {
-      let angle = Math.atan2(currentVel.y, currentVel.x)
-      
-      // 如果接近水平或垂直，添加一些随机偏移
-      if (isNearHorizontal || isNearVertical) {
-        // 添加一个随机的偏移角度 (±15度)
-        angle += (Math.random() - 0.5) * Math.PI / 6
-      }
-      
+    if (Math.abs(speed - targetSpeed) > 0.1) {
+      const angle = Math.atan2(velocity.y, velocity.x)
       Matter.Body.setVelocity(playerBody, {
         x: Math.cos(angle) * targetSpeed,
         y: Math.sin(angle) * targetSpeed

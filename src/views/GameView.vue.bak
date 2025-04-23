@@ -1,117 +1,33 @@
 <template>
   <div class="game-container">
-    <!-- 添加角色设置面板 -->
-    <div class="character-settings" v-if="!gameStarted">
-      <h3>角色设置</h3>
-      <div class="avatar-upload-container">
-        <div class="avatar-upload">
-          <div class="avatar-preview" :style="{ backgroundColor: playerColors[0] }">
-            <img v-if="avatars.player1" :src="avatars.player1" alt="Player 1" />
-          </div>
-          <div class="name-input">
-            <input 
-              type="text" 
-              v-model="playerNames.player1" 
-              placeholder="输入绿色角色名称"
-              maxlength="12"
-            />
-          </div>
-          <label class="upload-button">
-            上传绿色角色头像
-            <input 
-              type="file" 
-              accept="image/*" 
-              @change="handleAvatarUpload($event, 'player1')"
-              style="display: none"
-            />
-          </label>
+    <div class="game-header">
+      <div class="player-info player1-info">
+        <div class="player-name">{{ players[0].name }}</div>
+        <div class="health-bar">
+          <div 
+            class="health-value" 
+            :style="{ width: `${(players[0].hp / 5) * 100}%` }"
+            :class="{ 'low-health': players[0].hp <= 2 }"
+          ></div>
         </div>
-        
-        <div class="avatar-upload">
-          <div class="avatar-preview" :style="{ backgroundColor: playerColors[1] }">
-            <img v-if="avatars.player2" :src="avatars.player2" alt="Player 2" />
-          </div>
-          <div class="name-input">
-            <input 
-              type="text" 
-              v-model="playerNames.player2" 
-              placeholder="输入蓝色角色名称"
-              maxlength="12"
-            />
-          </div>
-          <label class="upload-button">
-            上传蓝色角色头像
-            <input 
-              type="file" 
-              accept="image/*" 
-              @change="handleAvatarUpload($event, 'player2')"
-              style="display: none"
-            />
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="game-area">
-      <!-- 玩家信息栏 -->
-      <div class="players-header">
-        <div class="player-stats player1-stats">
-          <div class="player-avatar" :style="{ backgroundColor: playerColors[0] }">
-            <img v-if="avatars.player1" :src="avatars.player1" alt="Player 1" />
-          </div>
-          <div class="player-details">
-            <div class="player-name">{{ playerNames.player1 }}</div>
-            <div class="health-bar">
-              <div 
-                class="health-value" 
-                :style="{ width: `${(players[0].hp / 5) * 100}%` }"
-                :class="{ 'low-health': players[0].hp <= 2 }"
-              ></div>
-            </div>
-            <div class="health-text">HP: {{ players[0].hp }}/5</div>
-          </div>
-        </div>
-
-        <div class="player-stats player2-stats">
-          <div class="player-details">
-            <div class="player-name">{{ playerNames.player2 }}</div>
-            <div class="health-bar">
-              <div 
-                class="health-value" 
-                :style="{ width: `${(players[1].hp / 5) * 100}%` }"
-                :class="{ 'low-health': players[1].hp <= 2 }"
-              ></div>
-            </div>
-            <div class="health-text">HP: {{ players[1].hp }}/5</div>
-          </div>
-          <div class="player-avatar" :style="{ backgroundColor: playerColors[1] }">
-            <img v-if="avatars.player2" :src="avatars.player2" alt="Player 2" />
-          </div>
-        </div>
-      </div>
-
-      <canvas ref="gameCanvas" width="600" height="400"></canvas>
-      
-      <!-- 游戏结束弹窗 -->
-      <div class="game-result" v-if="gameEnded">
-        <h2>游戏结束</h2>
-        <div v-if="winner">
-          <p>胜利者: {{ winner.name }}</p>
-        </div>
-        <div v-else>
-          <p>平局!</p>
-        </div>
-        <button @click="restartGame">再来一局</button>
+        <div class="health-text">HP: {{ players[0].hp }}/5</div>
       </div>
       
-      <!-- 开始游戏按钮 -->
-      <div class="game-start" v-if="!gameStarted && !gameEnded">
-        <h2>自动弹射对决</h2>
-        <p>准备好观看激烈的对决了吗？</p>
-        <button class="start-button" @click="startGame">开始游戏</button>
+      <div class="timer">{{ formatTime(gameTimer) }}</div>
+      
+      <div class="player-info player2-info">
+        <div class="player-name">{{ players[1].name }}</div>
+        <div class="health-bar">
+          <div 
+            class="health-value" 
+            :style="{ width: `${(players[1].hp / 5) * 100}%` }"
+            :class="{ 'low-health': players[1].hp <= 2 }"
+          ></div>
+        </div>
+        <div class="health-text">HP: {{ players[1].hp }}/5</div>
       </div>
     </div>
-
+    
     <!-- 速度控制滑块 -->
     <div class="speed-controls">
       <div class="speed-control">
@@ -138,6 +54,29 @@
           @input="updatePlayerSpeed('player2')"
           class="speed-slider"
         />
+      </div>
+    </div>
+    
+    <div class="game-area">
+      <canvas ref="gameCanvas" width="600" height="400"></canvas>
+      
+      <!-- 游戏结束弹窗 -->
+      <div class="game-result" v-if="gameEnded">
+        <h2>游戏结束</h2>
+        <div v-if="winner">
+          <p>胜利者: {{ winner.name }}</p>
+        </div>
+        <div v-else>
+          <p>平局!</p>
+        </div>
+        <button @click="restartGame">再来一局</button>
+      </div>
+      
+      <!-- 开始游戏按钮 -->
+      <div class="game-start" v-if="!gameStarted && !gameEnded">
+        <h2>自动弹射对决</h2>
+        <p>准备好观看激烈的对决了吗？</p>
+        <button class="start-button" @click="startGame">开始游戏</button>
       </div>
     </div>
 
@@ -201,30 +140,6 @@ const gearRotationSpeed = 0.05
 // 血迹特效状态
 const bloodSplatterEffects = ref([])
 
-// 碰撞特效状态
-const collisionEffects = ref([])
-
-// 伤害特效状态
-const damageEffects = ref([])
-
-// 添加头像状态
-const avatars = ref({
-  player1: null,
-  player2: null
-})
-
-// 添加角色名称状态
-const playerNames = ref({
-  player1: '绿色角色',
-  player2: '蓝色角色'
-})
-
-// 监听名称变化并更新游戏状态
-watch(playerNames, (newNames) => {
-  gameStore.players[0].name = newNames.player1 || '绿色角色'
-  gameStore.players[1].name = newNames.player2 || '蓝色角色'
-}, { deep: true })
-
 // 更新玩家速度
 function updatePlayerSpeed(playerId) {
   const speed = parseFloat(playerSpeeds.value[playerId])
@@ -241,11 +156,6 @@ function loadImages() {
 
 // 开始游戏
 function startGame() {
-  // 更新玩家名称
-  gameStore.players[0].name = playerNames.value.player1 || '绿色角色'
-  gameStore.players[1].name = playerNames.value.player2 || '蓝色角色'
-  
-  // 原有的开始游戏逻辑
   console.log('开始游戏')
   startPhysics()
   startGameLoop()
@@ -422,14 +332,17 @@ function drawGear(x, y, radius, teethCount, ctx, rotation = 0, playerGear = fals
 }
 
 // 添加血迹特效
-function addBloodSplatter(x, y, angle, speed) {
+function addBloodSplatter(x, y) {
   const effect = {
     x,
     y,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
-    size: 2 + Math.random() * 2,
-    life: 1.0,
+    particles: Array.from({ length: 20 }, () => ({
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 10,
+      vy: (Math.random() - 0.5) * 10,
+      life: 1.0
+    })),
     createdAt: Date.now()
   }
   bloodSplatterEffects.value.push(effect)
@@ -466,44 +379,6 @@ function drawEvilSmile(ctx, x, y, radius) {
   ctx.fill()
   
   ctx.restore()
-}
-
-// 添加碰撞特效
-function addCollisionEffect(x, y) {
-  const effect = {
-    x,
-    y,
-    radius: 1,
-    opacity: 1,
-    createdAt: Date.now()
-  }
-  collisionEffects.value.push(effect)
-}
-
-// 添加伤害特效
-function addDamageEffect(x, y, direction) {
-  // 创建多个切割线和火花效果
-  const effect = {
-    x,
-    y,
-    lines: Array.from({ length: 5 }, (_, i) => ({
-      // 在扇形范围内创建切割线
-      angle: direction + (Math.random() * 0.8 - 0.4), // 基础方向±0.4弧度
-      length: 20 + Math.random() * 10,
-      life: 1.0,
-      width: 2 + Math.random() * 1
-    })),
-    sparks: Array.from({ length: 8 }, () => ({
-      x: 0,
-      y: 0,
-      vx: (Math.random() - 0.5) * 8,
-      vy: (Math.random() - 0.5) * 8,
-      size: 1 + Math.random() * 2,
-      life: 1.0
-    })),
-    createdAt: Date.now()
-  }
-  damageEffects.value.push(effect)
 }
 
 // 渲染循环
@@ -564,6 +439,7 @@ function startRenderLoop() {
       const { position } = player
       const playerId = `player${index + 1}`
       
+      // 绘制玩家头像
       if (ctx.value) {
         // 如果玩家持有齿轮，先绘制头像周围的齿轮轮廓
         if (player.hasGear) {
@@ -608,23 +484,10 @@ function startRenderLoop() {
         }
         
         // 绘制玩家头像
-        ctx.value.save()
+        ctx.value.fillStyle = playerColors[index]
         ctx.value.beginPath()
         ctx.value.arc(position.x, position.y, 30, 0, Math.PI * 2)
-        ctx.value.clip()
-        
-        if (avatars.value[playerId]) {
-          // 如果有自定义头像，绘制头像
-          const avatar = new Image()
-          avatar.src = avatars.value[playerId]
-          ctx.value.drawImage(avatar, position.x - 30, position.y - 30, 60, 60)
-        } else {
-          // 否则绘制默认颜色
-          ctx.value.fillStyle = playerColors[index]
-          ctx.value.fill()
-        }
-        
-        ctx.value.restore()
+        ctx.value.fill()
         
         // 如果玩家有齿轮效果，绘制邪恶笑脸
         if (player.hasGear) {
@@ -669,155 +532,21 @@ function startRenderLoop() {
       const now = Date.now()
       bloodSplatterEffects.value = bloodSplatterEffects.value.filter(effect => {
         const age = (now - effect.createdAt) / 1000 // 转换为秒
-        if (age >= 0.5) return false // 血迹特效持续0.5秒
+        if (age >= 1) return false // 移除超过1秒的特效
         
-        // 更新位置和生命值
-        effect.x += effect.vx
-        effect.y += effect.vy
-        effect.life = 1 - (age / 0.5)
-        
-        // 绘制血迹
-        ctx.value.beginPath()
-        ctx.value.fillStyle = `rgba(255, 0, 0, ${effect.life * 0.8})`
-        ctx.value.arc(effect.x, effect.y, effect.size, 0, Math.PI * 2)
-        ctx.value.fill()
-        
-        // 添加拖尾效果
-        ctx.value.beginPath()
-        ctx.value.strokeStyle = `rgba(200, 0, 0, ${effect.life * 0.4})`
-        ctx.value.lineWidth = effect.size / 2
-        ctx.value.moveTo(effect.x - effect.vx * 3, effect.y - effect.vy * 3)
-        ctx.value.lineTo(effect.x, effect.y)
-        ctx.value.stroke()
-        
-        return true
-      })
-    }
-    
-    // 绘制碰撞特效
-    if (ctx.value) {
-      const now = Date.now()
-      collisionEffects.value = collisionEffects.value.filter(effect => {
-        const age = (now - effect.createdAt) / 1000 // 转换为秒
-        if (age >= 0.3) return false // 特效持续0.3秒
-        
-        // 计算特效大小和透明度
-        effect.radius = Math.min(20, effect.radius + 1)
-        effect.opacity = 1 - (age / 0.3)
-        
-        // 绘制发光圆圈
-        const gradient = ctx.value.createRadialGradient(
-          effect.x, effect.y, 0,
-          effect.x, effect.y, effect.radius
-        )
-        gradient.addColorStop(0, `rgba(255, 255, 255, ${effect.opacity})`)
-        gradient.addColorStop(0.5, `rgba(255, 255, 200, ${effect.opacity * 0.5})`)
-        gradient.addColorStop(1, `rgba(255, 255, 150, 0)`)
-        
-        ctx.value.fillStyle = gradient
-        ctx.value.beginPath()
-        ctx.value.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2)
-        ctx.value.fill()
-        
-        return true
-      })
-    }
-    
-    // 绘制伤害特效
-    if (ctx.value) {
-      const now = Date.now()
-      damageEffects.value = damageEffects.value.filter(effect => {
-        const age = (now - effect.createdAt) / 1000 // 转换为秒
-        if (age >= 0.4) return false // 特效持续0.4秒
-        
-        const progress = age / 0.4
-        
-        // 绘制切割线
-        effect.lines.forEach(line => {
-          const lineProgress = Math.max(0, 1 - progress * 2) // 线条先显示后消失
-          if (lineProgress > 0) {
-            ctx.value.beginPath()
-            ctx.value.strokeStyle = `rgba(255, 50, 50, ${lineProgress})`
-            ctx.value.lineWidth = line.width
-            
-            // 从中心点开始画线
-            const startX = effect.x
-            const startY = effect.y
-            const endX = startX + Math.cos(line.angle) * line.length
-            const endY = startY + Math.sin(line.angle) * line.length
-            
-            ctx.value.moveTo(startX, startY)
-            ctx.value.lineTo(endX, endY)
-            ctx.value.stroke()
-            
-            // 在线条末端添加小光点
-            ctx.value.fillStyle = `rgba(255, 200, 200, ${lineProgress})`
-            ctx.value.beginPath()
-            ctx.value.arc(endX, endY, line.width, 0, Math.PI * 2)
-            ctx.value.fill()
-          }
-        })
-        
-        // 绘制火花
-        effect.sparks.forEach(spark => {
-          spark.x += spark.vx
-          spark.y += spark.vy
-          spark.life = Math.max(0, 1 - progress * 1.5) // 火花比线条持续时间短
+        effect.particles.forEach(particle => {
+          particle.x += particle.vx
+          particle.y += particle.vy
+          particle.life = 1 - age
           
-          if (spark.life > 0) {
-            // 绘制火花粒子
-            ctx.value.fillStyle = `rgba(255, 200, 50, ${spark.life})`
-            ctx.value.beginPath()
-            ctx.value.arc(
-              effect.x + spark.x,
-              effect.y + spark.y,
-              spark.size * spark.life,
-              0,
-              Math.PI * 2
-            )
-            ctx.value.fill()
-          }
+          ctx.value.fillStyle = `rgba(255, 0, 0, ${particle.life * 0.7})`
+          ctx.value.beginPath()
+          ctx.value.arc(particle.x, particle.y, 2, 0, Math.PI * 2)
+          ctx.value.fill()
         })
         
         return true
       })
-    }
-    
-    // 检查玩家碰撞
-    const players = gameStore.players
-    if (players.length >= 2) {
-      const dx = players[0].position.x - players[1].position.x
-      const dy = players[0].position.y - players[1].position.y
-      const distance = Math.sqrt(dx * dx + dy * dy)
-      
-      // 如果玩家接触（考虑玩家半径60）
-      if (distance <= 60) {
-        // 计算碰撞角度
-        const collisionAngle = Math.atan2(dy, dx)
-        
-        // 检查是否有玩家带有齿轮并造成伤害
-        if (players[0].hasGear) {
-          // 在被攻击玩家位置创建伤害特效
-          addDamageEffect(
-            players[1].position.x,
-            players[1].position.y,
-            collisionAngle + Math.PI // 反方向
-          )
-        } else if (players[1].hasGear) {
-          // 在被攻击玩家位置创建伤害特效
-          addDamageEffect(
-            players[0].position.x,
-            players[0].position.y,
-            collisionAngle
-          )
-        } else {
-          // 普通碰撞显示闪光特效
-          addCollisionEffect(
-            (players[0].position.x + players[1].position.x) / 2,
-            (players[0].position.y + players[1].position.y) / 2
-          )
-        }
-      }
     }
     
     // 继续渲染循环
@@ -876,152 +605,58 @@ watch(() => gameStore.gameEnded, (newValue) => {
   }
 })
 
-// 在玩家碰撞处理中添加特效
-function onPlayerCollision(posA, posB, playerA, playerB) {
-  // 计算碰撞点（两个玩家的中点）
-  const collisionX = (posA.x + posB.x) / 2
-  const collisionY = (posA.y + posB.y) / 2
-
-  // 如果任一玩家带有齿轮，显示血迹特效
-  if (playerA.hasGear || playerB.hasGear) {
-    // 创建多个血丝粒子
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i / 8) + (Math.random() * 0.5 - 0.25)
-      const speed = 2 + Math.random() * 2
-      addBloodSplatter(collisionX, collisionY, angle, speed)
-    }
-  } else {
-    // 普通碰撞显示闪光特效
-    addCollisionEffect(collisionX, collisionY)
+// 在齿轮碰撞时添加血迹特效
+function onGearCollision(playerId, targetId) {
+  const targetPlayer = gameStore.players.find(p => p.id === targetId)
+  if (targetPlayer) {
+    addBloodSplatter(targetPlayer.position.x, targetPlayer.position.y)
   }
-}
-
-// 处理头像上传
-function handleAvatarUpload(event, playerId) {
-  const file = event.target.files[0]
-  if (!file) return
-  
-  // 验证文件类型
-  if (!file.type.startsWith('image/')) {
-    alert('请上传图片文件')
-    return
-  }
-  
-  // 创建 FileReader 读取图片
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    // 创建图片对象以获取尺寸
-    const img = new Image()
-    img.onload = () => {
-      // 创建 canvas 进行圆形裁剪
-      const canvas = document.createElement('canvas')
-      const size = 120 // 设置统一的大小
-      canvas.width = size
-      canvas.height = size
-      const ctx = canvas.getContext('2d')
-      
-      // 绘制圆形裁剪区域
-      ctx.beginPath()
-      ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2)
-      ctx.clip()
-      
-      // 计算缩放和位置以保持图片比例并居中
-      const scale = Math.max(size / img.width, size / img.height)
-      const x = (size - img.width * scale) / 2
-      const y = (size - img.height * scale) / 2
-      
-      // 绘制图片
-      ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
-      
-      // 将处理后的图片保存到状态
-      avatars.value[playerId] = canvas.toDataURL()
-    }
-    img.src = e.target.result
-  }
-  reader.readAsDataURL(file)
 }
 </script>
 
 <style scoped>
 .game-container {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 20px;
-  max-width: 1000px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 20px;
-  align-items: flex-start;
 }
 
-.game-area {
-  position: relative;
-  flex-grow: 1;
-}
-
-.players-header {
+.game-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
-  padding: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 8px;
-}
-
-.player-stats {
-  display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 200px;
-}
-
-.player1-stats {
-  padding-right: 20px;
-}
-
-.player2-stats {
-  padding-left: 20px;
-  flex-direction: row-reverse;
-}
-
-.player-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-}
-
-.player-avatar img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  padding: 10px;
 }
 
-.player-details {
+.player-info {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  flex-grow: 1;
+  width: 200px;
 }
 
-.player2-stats .player-details {
+.player1-info {
+  align-items: flex-start;
+}
+
+.player2-info {
   align-items: flex-end;
 }
 
 .player-name {
-  color: white;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: bold;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .health-bar {
-  width: 150px;
-  height: 10px;
-  background-color: #444;
+  width: 100%;
+  height: 15px;
+  background-color: #555;
   border-radius: 5px;
   overflow: hidden;
 }
@@ -1032,54 +667,93 @@ function handleAvatarUpload(event, playerId) {
   transition: width 0.3s ease;
 }
 
-.health-value.low-health {
+.low-health {
   background-color: #f44336;
 }
 
 .health-text {
-  color: white;
-  font-size: 12px;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.speed-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 15px;
-  background-color: rgba(0, 0, 0, 0.8);
-  border-radius: 8px;
-  min-width: 250px;
-}
-
-.speed-control {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.speed-slider {
-  width: 100%;
-  height: 10px;
-  cursor: pointer;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 5px;
-  -webkit-appearance: none;
-}
-
-.speed-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  background: #fff;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.speed-control label {
-  color: white;
   font-size: 14px;
-  text-align: center;
+}
+
+.timer {
+  font-size: 24px;
+  font-weight: bold;
+  padding: 10px 20px;
+  background-color: #333;
+  color: white;
+  border-radius: 5px;
+}
+
+.game-area {
+  position: relative;
+  width: 600px;
+  height: 400px;
+}
+
+canvas {
+  border: 2px solid #444;
+  border-radius: 8px;
+  background-color: #222;
+}
+
+.game-result,
+.game-start {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+button {
+  padding: 12px 24px;
+  font-size: 18px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.start-button {
+  font-size: 24px;
+  padding: 15px 30px;
+  background-color: #2196F3;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+.start-button:hover {
+  background-color: #1976D2;
 }
 
 .debug-info {
@@ -1092,5 +766,35 @@ function handleAvatarUpload(event, playerId) {
   font-family: monospace;
   width: 100%;
   max-width: 600px;
+}
+
+/* 速度控制样式 */
+.speed-controls {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 10px;
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.speed-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.speed-slider {
+  width: 200px;
+  height: 10px;
+  cursor: pointer;
+}
+
+.speed-control label {
+  font-weight: bold;
+  font-size: 14px;
 }
 </style> 

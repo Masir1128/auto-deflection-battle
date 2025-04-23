@@ -9,6 +9,7 @@ interface Player {
   hasGear: boolean
   position: { x: number, y: number }
   speedFactor: number // 玩家速度系数
+  gearEffectEndTime?: number // 齿轮效果结束时间
 }
 
 // 道具接口
@@ -28,18 +29,18 @@ export const useGameStore = defineStore('game', () => {
     {
       id: 'player1',
       name: 'SuperIdol',
-      hp: 10,
+      hp: 5,
       hasGear: false,
       position: { x: 150, y: 250 },
-      speedFactor: 1.0 // 默认速度系数
+      speedFactor: 0.6 // 默认速度系数
     },
     {
       id: 'player2',
       name: 'IShowSpeed',
-      hp: 10,
+      hp: 5,
       hasGear: false,
       position: { x: 450, y: 250 },
-      speedFactor: 1.0 // 默认速度系数
+      speedFactor: 0.6 // 默认速度系数
     }
   ])
   const items = ref<Item[]>([])
@@ -76,7 +77,7 @@ export const useGameStore = defineStore('game', () => {
     gameTimer.value = 90
     
     players.value.forEach(player => {
-      player.hp = 10
+      player.hp = 5
       player.hasGear = false
       // 保留玩家的速度系数，不重置
     })
@@ -96,7 +97,7 @@ export const useGameStore = defineStore('game', () => {
   
   function healPlayer(playerId: string) {
     const player = players.value.find(p => p.id === playerId)
-    if (player && player.hp < 10) {
+    if (player && player.hp < 5) {
       player.hp += 1
     }
   }
@@ -125,6 +126,33 @@ export const useGameStore = defineStore('game', () => {
     return items.value.find(item => item.id === itemId)
   }
   
+  function addGearEffect(playerId: string) {
+    const player = players.value.find(p => p.id === playerId)
+    if (player) {
+      player.hasGear = true
+      player.gearEffectEndTime = Date.now() + 5000 // 5秒后效果消失
+      player.speedFactor = player.speedFactor * 1.2 // 速度提升20%
+    }
+  }
+  
+  function removeGearEffect(playerId: string) {
+    const player = players.value.find(p => p.id === playerId)
+    if (player) {
+      player.hasGear = false
+      player.gearEffectEndTime = undefined
+      player.speedFactor = player.speedFactor / 1.2 // 恢复原速度
+    }
+  }
+  
+  function checkGearEffects() {
+    const now = Date.now()
+    players.value.forEach(player => {
+      if (player.hasGear && player.gearEffectEndTime && now >= player.gearEffectEndTime) {
+        removeGearEffect(player.id)
+      }
+    })
+  }
+  
   return {
     // 状态
     gameStarted,
@@ -145,6 +173,9 @@ export const useGameStore = defineStore('game', () => {
     setPlayerSpeed,
     addItem,
     removeItem,
-    getItemById
+    getItemById,
+    addGearEffect,
+    removeGearEffect,
+    checkGearEffects
   }
 }) 
