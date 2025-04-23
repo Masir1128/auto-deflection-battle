@@ -1,0 +1,709 @@
+<template>
+  <div class="game-container">
+    <div class="game-header">
+      <div class="player-info player1-info">
+        <div class="player-name">{{ players[0].name }}</div>
+        <div class="health-bar">
+          <div 
+            class="health-value" 
+            :style="{ width: `${(players[0].hp / 10) * 100}%` }"
+            :class="{ 'low-health': players[0].hp <= 3 }"
+          ></div>
+        </div>
+        <div class="health-text">HP: {{ players[0].hp }}/10</div>
+      </div>
+      
+      <div class="timer">{{ formatTime(gameTimer) }}</div>
+      
+      <div class="player-info player2-info">
+        <div class="player-name">{{ players[1].name }}</div>
+        <div class="health-bar">
+          <div 
+            class="health-value" 
+            :style="{ width: `${(players[1].hp / 10) * 100}%` }"
+            :class="{ 'low-health': players[1].hp <= 3 }"
+          ></div>
+        </div>
+        <div class="health-text">HP: {{ players[1].hp }}/10</div>
+      </div>
+    </div>
+    
+    <!-- 速度控制滑块 -->
+    <div class="speed-controls">
+      <div class="speed-control">
+        <label :style="{ color: playerColors[0] }">绿色玩家速度：{{ playerSpeeds.player1 }}x</label>
+        <input 
+          type="range" 
+          min="0.5" 
+          max="2.0" 
+          step="0.1" 
+          v-model="playerSpeeds.player1" 
+          @input="updatePlayerSpeed('player1')"
+          class="speed-slider"
+        />
+      </div>
+      
+      <div class="speed-control">
+        <label :style="{ color: playerColors[1] }">蓝色玩家速度：{{ playerSpeeds.player2 }}x</label>
+        <input 
+          type="range" 
+          min="0.5" 
+          max="2.0" 
+          step="0.1" 
+          v-model="playerSpeeds.player2" 
+          @input="updatePlayerSpeed('player2')"
+          class="speed-slider"
+        />
+      </div>
+    </div>
+    
+    <div class="game-area">
+      <canvas ref="gameCanvas" width="600" height="400"></canvas>
+      
+      <!-- 游戏结束弹窗 -->
+      <div class="game-result" v-if="gameEnded">
+        <h2>游戏结束</h2>
+        <div v-if="winner">
+          <p>胜利者: {{ winner.name }}</p>
+        </div>
+        <div v-else>
+          <p>平局!</p>
+        </div>
+        <button @click="restartGame">再来一局</button>
+      </div>
+      
+      <!-- 开始游戏按钮 -->
+      <div class="game-start" v-if="!gameStarted && !gameEnded">
+        <h2>自动弹射对决</h2>
+        <p>准备好观看激烈的对决了吗？</p>
+        <button class="start-button" @click="startGame">开始游戏</button>
+      </div>
+    </div>
+
+    <!-- 调试信息 -->
+    <div class="debug-info" v-if="!gameStarted">
+      <p>Tips: 请点击"开始游戏"按钮开始游戏</p>
+      <p>物理引擎状态: {{ isPhysicsRunning ? '运行中' : '未运行' }}</p>
+      <p>游戏物体数量: {{ gameStore.items.length }}</p>
+      <p>画布状态: {{ gameCanvas ? '已加载' : '未加载' }}</p>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, onUnmounted, watch, toRefs } from 'vue'
+import { useGameStore } from '../stores/gameStore'
+import { usePhysics } from '../composables/usePhysics'
+
+// 获取游戏状态
+const gameStore = useGameStore()
+const { 
+  gameStarted, 
+  gameEnded, 
+  gameTimer, 
+  players, 
+  winner 
+} = toRefs(gameStore)
+
+// 游戏Canvas引用
+const gameCanvas = ref(null)
+
+// 调试状态
+const isPhysicsRunning = ref(false)
+
+// 初始化物理引擎
+const { startGame: startPhysics, isRunning, updatePlayerSpeed: updatePhysicsSpeed } = usePhysics(gameCanvas)
+
+// 玩家速度控制
+const playerSpeeds = ref({
+  player1: 1.0,
+  player2: 1.0
+})
+
+// 游戏循环相关
+let gameLoopInterval = null
+let renderLoopId = null
+const ctx = ref(null)
+
+// 玩家头像颜色
+const playerColors = ['#4CAF50', '#2196F3'] // 绿色和蓝色
+
+// 道具加载状态
+const gearLoaded = ref(false)
+const heartLoaded = ref(false)
+
+// 齿轮旋转角度
+const gearRotation = ref(0)
+// 齿轮旋转速度
+const gearRotationSpeed = 0.05
+
+// 更新玩家速度
+function updatePlayerSpeed(playerId) {
+  const speed = parseFloat(playerSpeeds.value[playerId])
+  // 更新游戏状态中的速度系数
+  gameStore.setPlayerSpeed(playerId, speed)
+  // 应用到物理引擎
+  updatePhysicsSpeed(playerId, speed)
+}
+
+// 加载图像（现在只用颜色代替玩家头像）
+function loadImages() {
+  console.log('开始加载图像')
+}
+
+// 开始游戏
+function startGame() {
+  console.log('开始游戏')
+  startPhysics()
+  startGameLoop()
+  startRenderLoop()
+  isPhysicsRunning.value = isRunning.value
+  
+  // 应用玩家速度设置
+  updatePlayerSpeed('player1')
+  updatePlayerSpeed('player2')
+}
+
+// 重新开始游戏
+function restartGame() {
+  gameStore.resetGame()
+  startGame()
+}
+
+// 游戏主循环
+function startGameLoop() {
+  if (gameLoopInterval) {
+    clearInterval(gameLoopInterval)
+  }
+  
+  gameLoopInterval = window.setInterval(() => {
+    if (gameStore.gameStarted && !gameStore.gameEnded) {
+      // 更新游戏计时器
+      gameStore.gameTimer--
+      
+      // 检查游戏是否结束
+      if (gameStore.gameTimer <= 0) {
+        gameStore.endGame()
+        stopGameLoop()
+      }
+    }
+  }, 1000)
+}
+
+// 停止游戏循环
+function stopGameLoop() {
+  if (gameLoopInterval) {
+    clearInterval(gameLoopInterval)
+    gameLoopInterval = null
+  }
+  
+  if (renderLoopId) {
+    cancelAnimationFrame(renderLoopId)
+    renderLoopId = null
+  }
+}
+
+// 绘制带锯齿的齿轮
+function drawGear(x, y, radius, teethCount, ctx, rotation = 0, playerGear = false, active = false) {
+  const innerRadius = radius * 0.7
+  const toothDepth = radius * 0.3
+  
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(rotation)
+  
+  // 如果是玩家的齿轮轮廓，使用半透明效果
+  if (radius > 35) {
+    // 活跃状态有更强的发光效果
+    const alpha = active ? 0.8 : 0.6
+    ctx.globalAlpha = alpha
+    
+    // 绘制发光效果
+    const gradient = ctx.createRadialGradient(0, 0, radius * 0.5, 0, 0, radius + toothDepth)
+    
+    if (active) {
+      // 活跃时使用更亮的颜色
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)')
+      gradient.addColorStop(0.7, 'rgba(220, 220, 220, 0.5)')
+      gradient.addColorStop(1, 'rgba(200, 200, 200, 0.2)')
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+      ctx.lineWidth = 2
+    } else {
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)')
+      gradient.addColorStop(0.7, 'rgba(200, 200, 200, 0.3)')
+      gradient.addColorStop(1, 'rgba(180, 180, 180, 0.1)')
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'
+      ctx.lineWidth = 1
+    }
+    
+    ctx.fillStyle = gradient
+  } else {
+    // 普通齿轮颜色
+    ctx.fillStyle = '#DDDDDD'
+    ctx.strokeStyle = '#666666'
+    ctx.lineWidth = 1
+  }
+  
+  ctx.beginPath()
+  
+  for (let i = 0; i < teethCount; i++) {
+    const angle = (Math.PI * 2 / teethCount) * i
+    const nextAngle = (Math.PI * 2 / teethCount) * (i + 0.5)
+    const endAngle = (Math.PI * 2 / teethCount) * (i + 1)
+    
+    // 内圆到齿轮齿的外侧
+    ctx.lineTo(
+      Math.cos(angle) * radius,
+      Math.sin(angle) * radius
+    )
+    
+    // 齿轮齿的顶部
+    ctx.lineTo(
+      Math.cos(nextAngle) * (radius + toothDepth),
+      Math.sin(nextAngle) * (radius + toothDepth)
+    )
+    
+    // 齿轮齿的另一侧回到内圆
+    ctx.lineTo(
+      Math.cos(endAngle) * radius,
+      Math.sin(endAngle) * radius
+    )
+  }
+  
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
+  
+  // 如果是玩家的齿轮轮廓，不绘制内部
+  if (radius > 35) {
+    // 如果处于活跃状态，添加闪光点
+    if (active) {
+      // 在齿轮齿上添加闪光点
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+      for (let i = 0; i < teethCount; i += 2) {
+        const angle = (Math.PI * 2 / teethCount) * i + rotation / 2
+        const x = Math.cos(angle) * (radius + toothDepth * 0.5)
+        const y = Math.sin(angle) * (radius + toothDepth * 0.5)
+        
+        ctx.beginPath()
+        ctx.arc(x, y, 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+    
+    ctx.restore()
+    return
+  }
+  
+  // 绘制内圆
+  ctx.beginPath()
+  ctx.arc(0, 0, innerRadius, 0, Math.PI * 2)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fill()
+  ctx.stroke()
+  
+  // 绘制中心点
+  ctx.beginPath()
+  ctx.arc(0, 0, radius * 0.2, 0, Math.PI * 2)
+  ctx.fillStyle = playerGear ? '#333333' : '#888888'
+  ctx.fill()
+  
+  // 如果是玩家齿轮，绘制简单的图案
+  if (playerGear) {
+    // 十字线图案
+    ctx.strokeStyle = '#FFFFFF'
+    ctx.lineWidth = 1
+    
+    ctx.beginPath()
+    ctx.moveTo(-radius * 0.15, 0)
+    ctx.lineTo(radius * 0.15, 0)
+    ctx.stroke()
+    
+    ctx.beginPath()
+    ctx.moveTo(0, -radius * 0.15)
+    ctx.lineTo(0, radius * 0.15)
+    ctx.stroke()
+  }
+  
+  ctx.restore()
+}
+
+// 渲染循环
+function startRenderLoop() {
+  if (!ctx.value || !gameCanvas.value) return
+  
+  console.log('开始渲染循环')
+  
+  // 齿轮特效状态
+  let gearEffects = {
+    player1: { active: false, time: 0, maxTime: 30 },
+    player2: { active: false, time: 0, maxTime: 30 },
+  }
+  
+  // 上一帧的齿轮状态
+  let prevGearStates = {
+    player1: false,
+    player2: false
+  }
+  
+  const render = () => {
+    if (!ctx.value || !gameCanvas.value) return
+    
+    // 清空画布
+    ctx.value.clearRect(0, 0, gameCanvas.value.width, gameCanvas.value.height)
+    
+    // 绘制背景
+    ctx.value.fillStyle = '#222'
+    ctx.value.fillRect(0, 0, gameCanvas.value.width, gameCanvas.value.height)
+    
+    // 更新齿轮旋转角度
+    gearRotation.value += gearRotationSpeed
+    
+    // 检查玩家是否刚获得齿轮，触发特效
+    gameStore.players.forEach((player, index) => {
+      const playerId = `player${index + 1}`
+      if (player.hasGear && !prevGearStates[playerId]) {
+        // 玩家刚获得齿轮
+        gearEffects[playerId].active = true
+        gearEffects[playerId].time = 0
+      }
+      prevGearStates[playerId] = player.hasGear
+      
+      // 更新特效计时
+      if (gearEffects[playerId].active) {
+        gearEffects[playerId].time++
+        if (gearEffects[playerId].time >= gearEffects[playerId].maxTime) {
+          gearEffects[playerId].active = false
+        }
+      }
+    })
+    
+    // 绘制玩家
+    gameStore.players.forEach((player, index) => {
+      const { position } = player
+      const playerId = `player${index + 1}`
+      
+      // 绘制玩家头像
+      if (ctx.value) {
+        // 如果玩家持有齿轮，先绘制头像周围的齿轮轮廓
+        if (player.hasGear) {
+          // 计算特效缩放
+          let effectScale = 1
+          if (gearEffects[playerId].active) {
+            // 特效动画：从小变大再恢复正常
+            const progress = gearEffects[playerId].time / gearEffects[playerId].maxTime
+            if (progress < 0.5) {
+              effectScale = 0.5 + progress
+            } else {
+              effectScale = 1
+            }
+          }
+          
+          // 绘制一个大的旋转齿轮作为轮廓
+          const rotationSpeed = gearEffects[playerId].active ? -gearRotation.value : -gearRotation.value * 0.5
+          drawGear(
+            position.x, 
+            position.y, 
+            40 * effectScale, 
+            16, 
+            ctx.value, 
+            rotationSpeed, 
+            false,
+            gearEffects[playerId].active
+          )
+          
+          // 如果特效活跃，绘制额外的光晕
+          if (gearEffects[playerId].active) {
+            const progress = gearEffects[playerId].time / gearEffects[playerId].maxTime
+            const alpha = 1 - progress
+            
+            ctx.value.save()
+            ctx.value.globalAlpha = alpha * 0.7
+            ctx.value.fillStyle = 'white'
+            ctx.value.beginPath()
+            ctx.value.arc(position.x, position.y, 45 * effectScale, 0, Math.PI * 2)
+            ctx.value.fill()
+            ctx.value.restore()
+          }
+        }
+        
+        // 绘制玩家头像
+        ctx.value.fillStyle = playerColors[index]
+        ctx.value.beginPath()
+        ctx.value.arc(position.x, position.y, 30, 0, Math.PI * 2)
+        ctx.value.fill()
+        
+        // 玩家名称
+        ctx.value.fillStyle = '#FFF'
+        ctx.value.font = '12px Arial'
+        ctx.value.textAlign = 'center'
+        ctx.value.fillText(player.name, position.x, position.y - 40)
+      }
+    })
+    
+    // 绘制游戏道具
+    if (ctx.value) {
+      gameStore.items.forEach(item => {
+        const { position, type } = item
+        
+        if (type === 'gear') {
+          // 使用新的齿轮绘制函数
+          drawGear(position.x, position.y, 15, 12, ctx.value, gearRotation.value)
+        } else if (type === 'heart') {
+          // 绘制红色爱心（用圆圈代替）
+          ctx.value.fillStyle = '#F44336' // 红色
+          ctx.value.beginPath()
+          ctx.value.arc(position.x, position.y, 15, 0, Math.PI * 2)
+          ctx.value.fill()
+          
+          // 绘制内部花纹，使其看起来更像爱心
+          ctx.value.fillStyle = '#FFFFFF'
+          ctx.value.font = '15px Arial'
+          ctx.value.textAlign = 'center'
+          ctx.value.textBaseline = 'middle'
+          ctx.value.fillText('❤', position.x, position.y)
+        }
+      })
+    }
+    
+    // 继续渲染循环
+    if (gameStore.gameStarted && !gameStore.gameEnded) {
+      renderLoopId = requestAnimationFrame(render)
+    }
+  }
+  
+  renderLoopId = requestAnimationFrame(render)
+}
+
+// 格式化时间显示
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+}
+
+// 组件挂载时
+onMounted(() => {
+  console.log('组件挂载')
+  if (gameCanvas.value) {
+    console.log('获取Canvas上下文')
+    ctx.value = gameCanvas.value.getContext('2d')
+    loadImages()
+    
+    // 默认背景绘制
+    if (ctx.value) {
+      ctx.value.fillStyle = '#333'
+      ctx.value.fillRect(0, 0, gameCanvas.value.width, gameCanvas.value.height)
+      
+      ctx.value.fillStyle = '#FFF'
+      ctx.value.font = '24px Arial'
+      ctx.value.textAlign = 'center'
+      ctx.value.fillText('点击"开始游戏"按钮开始', gameCanvas.value.width / 2, gameCanvas.value.height / 2)
+      
+      // 绘制说明
+      ctx.value.font = '16px Arial'
+      ctx.value.fillText('绿色和蓝色 = 玩家，白色 = 齿轮，红色 = 爱心', gameCanvas.value.width / 2, gameCanvas.value.height / 2 + 40)
+      
+      // 绘制示例齿轮
+      drawGear(gameCanvas.value.width / 2, gameCanvas.value.height / 2 + 80, 20, 12, ctx.value, 0)
+    }
+  }
+})
+
+// 组件卸载时
+onUnmounted(() => {
+  stopGameLoop()
+})
+
+// 监听游戏状态变化
+watch(() => gameStore.gameEnded, (newValue) => {
+  if (newValue) {
+    stopGameLoop()
+  }
+})
+</script>
+
+<style scoped>
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 200px;
+}
+
+.player1-info {
+  align-items: flex-start;
+}
+
+.player2-info {
+  align-items: flex-end;
+}
+
+.player-name {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.health-bar {
+  width: 100%;
+  height: 15px;
+  background-color: #555;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.health-value {
+  height: 100%;
+  background-color: #4CAF50;
+  transition: width 0.3s ease;
+}
+
+.low-health {
+  background-color: #f44336;
+}
+
+.health-text {
+  font-size: 14px;
+}
+
+.timer {
+  font-size: 24px;
+  font-weight: bold;
+  padding: 10px 20px;
+  background-color: #333;
+  color: white;
+  border-radius: 5px;
+}
+
+.game-area {
+  position: relative;
+  width: 600px;
+  height: 400px;
+}
+
+canvas {
+  border: 2px solid #444;
+  border-radius: 8px;
+  background-color: #222;
+}
+
+.game-result,
+.game-start {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+button {
+  padding: 12px 24px;
+  font-size: 18px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.start-button {
+  font-size: 24px;
+  padding: 15px 30px;
+  background-color: #2196F3;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+.start-button:hover {
+  background-color: #1976D2;
+}
+
+.debug-info {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #666;
+  border-radius: 5px;
+  background-color: #333;
+  color: #FFF;
+  font-family: monospace;
+  width: 100%;
+  max-width: 600px;
+}
+
+/* 速度控制样式 */
+.speed-controls {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 10px;
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.speed-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.speed-slider {
+  width: 200px;
+  height: 10px;
+  cursor: pointer;
+}
+
+.speed-control label {
+  font-weight: bold;
+  font-size: 14px;
+}
+</style> 
