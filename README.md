@@ -1,5 +1,164 @@
-# Vue 3 + TypeScript + Vite
+# 自动弹射对决（Auto Deflection Battle）
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+一个基于Vue 3和物理引擎的双人对战游戏，玩家可以自定义角色并观看他们的自动对决。
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## 功能特点
+
+- 双人对战系统
+- 自定义角色设置
+  - 自定义头像上传
+  - 自定义角色名称
+  - 可调节移动速度
+- 物理碰撞系统
+- 道具系统
+  - 齿轮道具：增加攻击能力
+  - 爱心道具：恢复生命值
+- 生命值系统
+- 特效系统
+  - 碰撞特效
+  - 伤害特效
+  - 血迹效果
+  - 齿轮旋转动画
+
+## 技术栈
+
+- Vue 3
+- Composition API
+- Canvas API
+- 物理引擎系统
+- TypeScript
+
+## 安装和运行
+
+### 环境要求
+
+- Node.js >= 14.0.0
+- npm >= 6.0.0
+
+### 安装步骤
+
+1. 克隆项目
+```bash
+git clone [项目地址]
+cd auto-deflection-battle
+```
+
+2. 安装依赖
+```bash
+npm install
+```
+
+3. 启动开发服务器
+```bash
+npm run dev
+```
+
+4. 构建生产版本
+```bash
+npm run build
+```
+
+## 游戏玩法
+
+1. 游戏开始前设置
+   - 为两个角色设置名称（可选）
+   - 上传自定义头像（可选）
+   - 调整角色移动速度（0.5x - 2.0x）
+
+2. 点击"开始游戏"按钮开始对决
+
+3. 游戏规则
+   - 每个角色初始生命值为5点
+   - 角色会自动移动和碰撞
+   - 获得齿轮道具后可以造成伤害
+   - 获得爱心道具可以恢复生命值
+   - 生命值耗尽或时间结束时游戏结束
+
+## 项目结构
+
+```
+src/
+├── assets/          # 静态资源
+├── components/      # 组件
+├── composables/     # 组合式函数
+│   └── usePhysics.ts    # 物理引擎逻辑
+├── stores/          # 状态管理
+│   └── gameStore.ts     # 游戏状态
+└── views/
+    └── GameView.vue     # 主游戏界面
+```
+
+## 核心逻辑说明
+
+### 游戏初始化流程
+
+1. 加载游戏界面（GameView.vue）
+2. 初始化物理引擎（usePhysics.ts）
+3. 初始化游戏状态（gameStore.ts）
+4. 等待玩家配置角色
+
+### 游戏循环
+
+1. 开始游戏后启动两个主要循环：
+   - 物理更新循环：处理位置、碰撞等
+   - 渲染循环：更新画面显示
+
+2. 每帧更新内容：
+   - 更新物理状态
+   - 检测碰撞
+   - 处理道具效果
+   - 更新特效
+   - 渲染画面
+
+### 物理系统
+
+- 使用简单的物理引擎处理运动和碰撞
+- 支持速度调节
+- 处理边界碰撞和角色之间的碰撞
+
+### 状态管理
+
+游戏状态由Pinia store管理，包括：
+- 玩家状态（位置、生命值、道具效果）
+- 游戏状态（开始/结束、计时器）
+- 道具状态
+- 特效状态
+
+## 开发指南
+
+### 添加新特效
+
+1. 在GameView.vue中定义特效状态
+2. 创建特效渲染函数
+3. 在适当的时机触发特效
+4. 在渲染循环中更新和绘制特效
+
+### 添加新道具
+
+1. 在gameStore.ts中定义道具类型和效果
+2. 在物理引擎中添加道具碰撞检测
+3. 在GameView.vue中添加道具渲染逻辑
+4. 实现道具效果处理函数
+
+## 注意事项
+
+- 游戏使用Canvas进行渲染，确保浏览器支持Canvas API
+- 头像上传限制为图片文件
+- 角色名称限制为12个字符
+- 速度调节范围：0.5x - 2.0x
+
+## 贡献指南
+
+1. Fork 项目
+2. 创建特性分支
+3. 提交更改
+4. 推送到分支
+5. 创建 Pull Request
+
+## 许可证
+
+[许可证类型]
+
+## 联系方式
+
+[联系信息]
